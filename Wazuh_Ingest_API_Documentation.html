@@ -1,0 +1,230 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>Wazuh Ingest API Documentation</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:920px;margin:40px auto;padding:0 20px;line-height:1.4;color:#111}code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}pre{background:#f6f8fa;padding:12px;border-radius:8px;overflow:auto}h1,h2,h3{margin-top:28px}hr{border:0;border-top:1px solid #ddd;margin:24px 0}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:6px 10px}ul{margin-top:6px}</style>
+</head><body>
+<h1>Wazuh Ingest API (Agent-Ingest) — Documentation</h1>
+<br/>
+<p>This project runs a Wazuh agent plus a small HTTP API that accepts JSON events and forwards them into the local Wazuh agent queue. The Wazuh agent then forwards them to the manager like normal agent data.</p>
+<br/>
+<h2>Components</h2>
+<br/>
+<ul>
+<li>**Ingestion API (FastAPI)**: Receives JSON over HTTP and forwards it to the Wazuh queue socket.</li>
+<li>**Wazuh agent**: Enrolled to a Wazuh manager and forwards events upstream.</li>
+<li>**Readiness webserver**: A simple HTTP server that serves `ready.html` when the agent is connected.</li>
+</ul>
+<br/>
+<h2>Network Ports</h2>
+<br/>
+<ul>
+<li>**9000/tcp**: FastAPI ingestion service.</li>
+<li>**9001/tcp** (internal): Readiness static webserver (serves `ready.html` when connected). The port is configurable using `READY_PORT`.</li>
+</ul>
+<br/>
+<h2>Authentication</h2>
+<br/>
+<p>The API supports optional API key authentication:</p>
+<br/>
+<ul>
+<li>Request header: `X-API-Key`</li>
+<li>Environment variable: `API_KEY`</li>
+</ul>
+<br/>
+<p>Behavior:</p>
+<br/>
+<ul>
+<li>If `API_KEY` is **not** set or is empty, all requests are allowed.</li>
+<li>If `API_KEY` is set, requests must include `X-API-Key: &lt;API_KEY&gt;` or the API returns `403 {&quot;detail&quot;:&quot;Could not validate credentials&quot;}`.</li>
+</ul>
+<br/>
+<h2>Endpoints</h2>
+<br/>
+<h3>GET /health</h3>
+<br/>
+<p>Returns whether the Wazuh queue socket is available inside the container.</p>
+<br/>
+<p>Example:</p>
+<br/>
+<pre><code>curl -sS http://&lt;agent-ip&gt;:9000/health</code></pre>
+<br/>
+<p>Response:</p>
+<br/>
+<ul>
+<li>`{&quot;status&quot;:&quot;healthy&quot;,&quot;wazuh_socket&quot;:&quot;connected&quot;}` when `/var/ossec/queue/sockets/queue` exists.</li>
+<li>`{&quot;status&quot;:&quot;unhealthy&quot;,&quot;wazuh_socket&quot;:&quot;disconnected&quot;}` otherwise.</li>
+</ul>
+<br/>
+<h3>PUT /</h3>
+<br/>
+<p>Ingest a single JSON event. The payload must be a JSON object.</p>
+<br/>
+<p>Example (no API key):</p>
+<br/>
+<pre><code>curl -X PUT &quot;http://&lt;agent-ip&gt;:9000/&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{&quot;message&quot;:&quot;UNIQUE_TEST_12345&quot;,&quot;event_type&quot;:&quot;api_test&quot;}&#x27;</code></pre>
+<br/>
+<p>Example (with API key):</p>
+<br/>
+<pre><code>curl -X PUT &quot;http://&lt;agent-ip&gt;:9000/&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -H &quot;X-API-Key: &lt;your-api-key&gt;&quot; \
+  -d &#x27;{&quot;message&quot;:&quot;UNIQUE_TEST_12345&quot;,&quot;event_type&quot;:&quot;api_test&quot;}&#x27;</code></pre>
+<br/>
+<p>Successful response:</p>
+<br/>
+<pre><code>{&quot;status&quot;:&quot;success&quot;,&quot;message&quot;:&quot;Event sent to Wazuh&quot;}</code></pre>
+<br/>
+<p>Error responses:</p>
+<br/>
+<ul>
+<li>`{&quot;status&quot;:&quot;error&quot;,&quot;message&quot;:&quot;Wazuh agent is not running or socket is missing&quot;}`</li>
+<li>`{&quot;status&quot;:&quot;error&quot;,&quot;message&quot;:&quot;Message too long&quot;}`</li>
+<li>`{&quot;status&quot;:&quot;error&quot;,&quot;message&quot;:&quot;Wazuh must be running.&quot;}`</li>
+</ul>
+<br/>
+<h3>PUT /batch</h3>
+<br/>
+<p>Ingest multiple events in one request. The payload must be a JSON array of objects.</p>
+<br/>
+<p>Example:</p>
+<br/>
+<pre><code>curl -X PUT &quot;http://&lt;agent-ip&gt;:9000/batch&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -H &quot;X-API-Key: &lt;your-api-key&gt;&quot; \
+  -d &#x27;[{&quot;message&quot;:&quot;one&quot;,&quot;event_type&quot;:&quot;api_test&quot;},{&quot;message&quot;:&quot;two&quot;,&quot;event_type&quot;:&quot;api_test&quot;}]&#x27;</code></pre>
+<br/>
+<p>Response:</p>
+<br/>
+<pre><code>{
+  &quot;status&quot;: &quot;batch_processed&quot;,
+  &quot;total&quot;: 2,
+  &quot;errors&quot;: 0,
+  &quot;details&quot;: [
+    {&quot;status&quot;:&quot;success&quot;,&quot;message&quot;:&quot;Event sent to Wazuh&quot;},
+    {&quot;status&quot;:&quot;success&quot;,&quot;message&quot;:&quot;Event sent to Wazuh&quot;}
+  ]
+}</code></pre>
+<br/>
+<h2>Event Forwarding Format</h2>
+<br/>
+<p>The API forwards events to the Wazuh agent queue socket:</p>
+<br/>
+<ul>
+<li>Socket path: `/var/ossec/queue/sockets/queue`</li>
+<li>Socket type: Unix datagram socket (`AF_UNIX`, `SOCK_DGRAM`)</li>
+<li>Message format:</li>
+</ul>
+<p>  - A decoder header prefix, then JSON payload</p>
+<p>  - Default header is controlled by `WAZUH_DECODER_HEADER`</p>
+<br/>
+<h3>Decoder Header Selection</h3>
+<br/>
+<p>The header is decided as follows:</p>
+<br/>
+<ul>
+<li>If the incoming JSON payload includes a `decoder` field, the header becomes:</li>
+</ul>
+<p>  - `1:&lt;decoder&gt;:`</p>
+<ul>
+<li>Otherwise, the header defaults to:</li>
+</ul>
+<p>  - `WAZUH_DECODER_HEADER` (default: `1:Wazuh-AWS:`)</p>
+<br/>
+<p>The API also adds:</p>
+<br/>
+<ul>
+<li>`ingest: &quot;api&quot;`</li>
+</ul>
+<br/>
+<p>Example payload:</p>
+<br/>
+<pre><code>{&quot;decoder&quot;:&quot;json&quot;,&quot;message&quot;:&quot;UNIQUE_TEST_12345&quot;,&quot;event_type&quot;:&quot;api_test&quot;}</code></pre>
+<br/>
+<p>Results in (conceptually):</p>
+<br/>
+<pre><code>1:json:{&quot;decoder&quot;:&quot;json&quot;,&quot;message&quot;:&quot;UNIQUE_TEST_12345&quot;,&quot;event_type&quot;:&quot;api_test&quot;,&quot;ingest&quot;:&quot;api&quot;}</code></pre>
+<br/>
+<h2>Environment Variables</h2>
+<br/>
+<h3>Wazuh Enrollment / Connection</h3>
+<br/>
+<ul>
+<li>`MANAGER_URL`: Manager host/IP used for enrollment.</li>
+<li>`MANAGER_PORT`: Enrollment port (typically `1515/tcp`).</li>
+<li>`SERVER_URL`: Manager/worker host/IP used for agent data channel.</li>
+<li>`SERVER_PORT`: Agent data port (typically `1514/tcp`).</li>
+<li>`NAME`: Agent name (should be stable and unique).</li>
+<li>`GROUP`: Agent group.</li>
+<li>`ENROL_TOKEN`: Optional enrollment password/token. If empty, the container removes `authd.pass`.</li>
+</ul>
+<br/>
+<h3>API</h3>
+<br/>
+<ul>
+<li>`API_KEY`: Optional API key required via `X-API-Key` if set.</li>
+<li>`API_PORT`: FastAPI listen port (default `9000`).</li>
+<li>`WAZUH_DECODER_HEADER`: Default decoder header prefix if request doesn’t include `decoder`.</li>
+</ul>
+<br/>
+<h3>Readiness</h3>
+<br/>
+<ul>
+<li>`READY_PORT`: Readiness static webserver port (default `9001`).</li>
+</ul>
+<br/>
+<h2>How to Test End-to-End</h2>
+<br/>
+<h3>1) Confirm API health</h3>
+<br/>
+<pre><code>curl -sS http://&lt;agent-ip&gt;:9000/health</code></pre>
+<br/>
+<h3>2) Send a unique test event</h3>
+<br/>
+<pre><code>curl -X PUT &quot;http://&lt;agent-ip&gt;:9000/&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -H &quot;X-API-Key: &lt;your-api-key&gt;&quot; \
+  -d &#x27;{&quot;decoder&quot;:&quot;json&quot;,&quot;message&quot;:&quot;UNIQUE_TEST_12345&quot;,&quot;event_type&quot;:&quot;api_test&quot;}&#x27;</code></pre>
+<br/>
+<h3>3) Confirm the agent is connected and sending</h3>
+<br/>
+<pre><code>docker exec -it wazuh-log-pipeline-agent-ingest-1 bash -lc &quot;cat /var/ossec/var/run/wazuh-agentd.state&quot;</code></pre>
+<br/>
+<h3>4) Confirm the manager received the event</h3>
+<br/>
+<p>On the manager, search archives:</p>
+<br/>
+<pre><code>sudo grep -R &quot;UNIQUE_TEST_12345&quot; /var/ossec/logs/archives/archives.json | tail -n 5</code></pre>
+<br/>
+<h3>5) Make it visible as an alert in the dashboard (recommended)</h3>
+<br/>
+<p>Many dashboards focus on `wazuh-alerts-*` indices, which require Wazuh rules to generate alerts.</p>
+<br/>
+<p>Create a local rule that matches the ingested JSON fields (example):</p>
+<br/>
+<pre><code>&lt;group name=&quot;api_ingest,&quot;&gt;
+  &lt;rule id=&quot;100200&quot; level=&quot;5&quot;&gt;
+    &lt;decoded_as&gt;json&lt;/decoded_as&gt;
+    &lt;field name=&quot;data.event_type&quot;&gt;api_test&lt;/field&gt;
+    &lt;field name=&quot;data.ingest&quot;&gt;api&lt;/field&gt;
+    &lt;description&gt;API ingest event (api_test)&lt;/description&gt;
+  &lt;/rule&gt;
+&lt;/group&gt;</code></pre>
+<br/>
+<p>After adding the rule, restart the manager and resend the event. Then in Discover, search:</p>
+<br/>
+<ul>
+<li>`data.message: UNIQUE_TEST_12345`</li>
+<li>`data.event_type: api_test`</li>
+<li>`rule.id: 100200`</li>
+</ul>
+<br/>
+<h2>Operational Notes</h2>
+<br/>
+<ul>
+<li>If you see HTML “File not found” when calling `/health`, you are hitting the readiness static webserver, not FastAPI. FastAPI health is on port 9000.</li>
+<li>Keep `NAME` stable across restarts to avoid creating duplicate agents.</li>
+<li>Persist `/var/ossec/etc` if you want stable agent keys across container recreation.</li>
+</ul>
+</body></html>

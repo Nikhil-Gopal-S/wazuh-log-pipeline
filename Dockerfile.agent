@@ -1,0 +1,40 @@
+FROM debian:trixie-slim
+
+
+LABEL version "4.10.0"
+LABEL description "Wazuh Agent"
+
+
+COPY bin/entrypoint_node.sh /entrypoint.sh
+COPY config/ossec_node.tpl /opt/ossec/ossec.tpl
+
+#Install pre
+RUN apt-get update && apt-get install -y python3 python3-pip  --no-install-recommends && apt-get clean \
+&& rm -rf /var/lib/apt/lists/*
+
+#Install pyton packages for wazuh
+RUN pip3 install --no-cache-dir boto3 pyarrow numpy --break-system-packages
+RUN pip3 install fastapi[standard] uvicorn --break-system-packages
+
+
+RUN apt-get update && apt-get install -y  procps curl apt-transport-https ca-certificates gnupg2 inotify-tools gettext-base --no-install-recommends && apt-get clean \
+&& rm -rf /var/lib/apt/lists/*
+
+
+
+#Install wazuh
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import && chmod 644 /usr/share/keyrings/wazuh.gpg
+RUN echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" | tee -a /etc/apt/sources.list.d/wazuh.list 
+
+
+ARG WAZUH_AGENT_VERSION
+RUN apt-get update && if [ -n "$WAZUH_AGENT_VERSION" ]; then apt-get install -y wazuh-agent="$WAZUH_AGENT_VERSION" --no-install-recommends; else apt-get install -y wazuh-agent --no-install-recommends; fi && apt-get clean \
+&& rm -rf /var/lib/apt/lists/*
+
+
+
+#Adding Webserver and ready, metrics 
+COPY web /web
+RUN chmod +x /web/ready.sh &&  chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

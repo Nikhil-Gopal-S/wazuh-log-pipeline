@@ -1,0 +1,161 @@
+api:
+  enabled: true
+  address: 0.0.0.0:8686
+sources:
+  alerts_s3:
+    type: aws_s3
+    region: us-east-1
+    compression: gzip
+    sqs:
+      queue_url: 
+  cloudtrail_s3:
+     type: aws_s3
+     region: us-east-1
+     sqs:
+       queue_url: 
+  vpcflow_s3:
+      type: aws_s3
+      region: us-east-1
+      sqs:
+        queue_url: 
+  s3access_s3:
+      type: aws_s3
+      region: us-east-1
+      sqs:
+        queue_url: 
+  s3sso_s3:
+      type: aws_s3
+      region: us-east-1
+      sqs:
+        queue_url:
+
+
+
+transforms:
+  s3sso_parser:
+    type: remap
+    inputs: 
+     - s3sso_s3
+    source: |-
+      .aws = parse_json!(.message) 
+      .parsed_type = "json"
+      .integration = "aws"
+      .aws.source = "sso"
+      del(.message)
+  s3access_parser:
+    type: remap
+    inputs: 
+     - s3access_s3
+    source: |-
+        .integration = "aws"
+        .structured, err = parse_json(.message) ?? parse_common_log(.message) ?? parse_apache_log(.message, "common") ?? parse_aws_alb_log(.message) ?? parse_regex(.message, r'^(?P<env>\S+) (?P<tls>\S+) (?P<time_action>\S+) (?P<url>\S+) (?P<account>\S+) (?P<source>\S+) (?P<destip>\S+) (?P<size>\S+) (?P<time>\S+) (?P<response>\S+) (?P<value1>\S+) (?P<value2>\S+) (?P<value3>\S+) (?P<value4>\S+) (?P<value5>\S+) (?P<value6>\S+) (?P<value12>\S+) (?P<value7>\S+) (?P<value8>\S+) (?P<value9>\S+) (?P<value10>\S+) (?P<value11>)')  ?? parse_regex(.message,r'^(?P<owner>\S+) (?P<bucket>\S+) \[(?P<timestamp>[^\]]+)\] (?P<ip_address>\S+) (?P<requester>\S+) (?P<request_id>\S+) (?P<operation>\S+) (?P<key>\S+) (?P<request_uri>\S+) (?P<status>\S+) (?P<error_code>\S+) (?P<response_bytes>\S+) (?P<object_size>\S+) (?P<request_ms>\S+) (?P<processing_ms>\S+) (?P<referrer>\S+) (?P<user_agent>[^"]+) (?P<version_id>\S+)') 
+         if err != null {
+          .parsed_type = "error parsing s3_access"
+        }
+        .aws = .structured
+        del(.structured)
+  s3access_type:
+    type: remap
+    inputs: 
+     - s3access_parser
+    source: |-
+      .aws.object = string!(.object)
+      if contains(.aws.object, "elasticloadbalancing") {
+        .aws.source = "elb"
+      }
+      if contains(.aws.object, "vpcdnsquerylogs") {
+        .aws.source = "dns"
+      }
+      .integration = "aws"
+      del(.message)
+  github_parser:
+    type: remap
+    inputs: 
+     - alerts_s3
+    source: |-
+      .github = parse_json!(.message) 
+      .parsed_type = "json"
+      .integration = "github"
+      del(.message)
+  cloudtrail_parser:
+    type: remap
+    inputs:
+      - cloudtrail_s3
+    source: |-
+      .aws,err = parse_json(.message)
+      if err != null {
+          .aws = .message
+      }
+      .integration = "aws"
+      .aws.source = "cloudtrail"
+      .parsed_type = "json"
+  cloudtrail_record_parser:
+    type: remap
+    inputs:
+      - cloudtrail_parser
+    source: |-
+      .parsed_type = "json"
+      .,err = unnest(.aws.Records)
+      if err != null {
+          . = .aws.Records
+      }
+  cloudtrail_record_extract_parser:
+    type: remap
+    inputs:
+      - cloudtrail_record_parser
+    source: |-
+        .aws = .aws.Records
+        .integration = "aws"
+        .aws.source = "cloudtrail"
+        del(.message)
+  vpcflow_parser:
+      type: remap
+      inputs:
+        - vpcflow_s3
+      source: |-
+        .aws,err  = parse_json(.message) 
+        .parsed_type = "json"
+        .@timestamp = from_unix_timestamp!(.message.start)
+        .integration = "aws"
+        .aws.source = "vpc"
+        if err != null {
+          .parsed_type = "error parsing json"
+        }
+  keep_parser:
+    type: remap
+    inputs: 
+     - github_parser
+     - cloudtrail_record_extract_parser
+     - vpcflow_parser
+     - s3access_type
+     - s3sso_parser
+    source: |-
+      if (.fields.aws_log == "vpcflow") {
+        if (."message.log-status" != "OK") {
+          abort
+          }
+      }
+  dest_ready:
+    type: remap
+    inputs:
+      - keep_parser
+    source: >-
+      .parsed="done"
+  
+sinks:
+  wazuh-ingest:
+    inputs:
+      - dest_ready
+    type: http
+    uri: http://wazuh-agent.integsrv:9001/batch
+    method: put
+    encoding:
+      codec: json
+    batch:
+      max_events: 70
+      timeout_secs: 2
+    request:
+      rate_limit_duration_secs: 10
+      rate_limit_num: 10
+      retry_initial_backoff_secs: 5
+

@@ -1,0 +1,20 @@
+services:
+  agent-ingest:
+    image: sammascanner/wazuh-agent:regular_0.2
+    volumes:
+      -  /etc:/hostfs/etc
+      -  /usr/local/bin:/hostfs/usr/local/bin
+      -  /var/log:/hostfs/var/log
+      -  /var/run:/hostfs/var/run
+      - /bin:/hostfs/bin
+      - /boot:/hostfs/boot
+      - /dev:/hostfs/dev
+      - /lib:/hostfs/lib
+    environment:
+      - "MANAGER_URL=${MANAGER_URL:?MANAGER_URL is required}"
+      - "MANAGER_PORT=${MANAGER_PORT:?MANAGER_PORT is required}"
+      - "SERVER_URL=${SERVER_URL:?SERVER_URL is required}"
+      - "SERVER_PORT=${SERVER_PORT:?SERVER_PORT is required}"
+      - "NAME=${NAME:?NAME is required}"
+      - "GROUP=${GROUP:?GROUP is required}"
+      - "ENROL_TOKEN=${ENROL_TOKEN:?ENROL_TOKEN is required}"

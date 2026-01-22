@@ -1,0 +1,53 @@
+services:
+  agent-ingest:
+    build:
+      context: .
+      args:
+        - "WAZUH_AGENT_VERSION=${WAZUH_AGENT_VERSION:-}"
+    image: sammascanner/wazuh-agent:ingets_0.2
+    ports: 
+      - "9000:9000"
+    volumes:
+      -  ./code:/var/ossec/wodles/code
+      - agent-ingest-ossec-etc:/var/ossec/etc
+    environment:
+      - "MANAGER_URL=${MANAGER_URL:-localhost}"
+      - "MANAGER_PORT=${MANAGER_PORT:-1515}"
+      - "SERVER_URL=${SERVER_URL:-localhost}"
+      - "SERVER_PORT=${SERVER_PORT:-1514}"
+      - "NAME=${NAME:-agent-ingest}"
+      - "GROUP=${GROUP:-default}"
+      - "ENROL_TOKEN=${ENROL_TOKEN:-}"
+      - "API_KEY=${API_KEY:-}"
+      - "WAZUH_DECODER_HEADER=${WAZUH_DECODER_HEADER:-1:Wazuh-AWS:}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  agent-regular:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+      args:
+        - "WAZUH_AGENT_VERSION=${WAZUH_AGENT_VERSION:-}"
+    image: sammascanner/wazuh-agent:regular_0.2
+    ports: 
+      - "${AGENT_REGULAR_PORT:-9001}:9000"
+    volumes:
+      -  ./code:/var/ossec/wodles/code
+      - agent-regular-ossec-etc:/var/ossec/etc
+    environment:
+      - "MANAGER_URL=${MANAGER_URL:-localhost}"
+      - "MANAGER_PORT=${MANAGER_PORT:-1515}"
+      - "SERVER_URL=${SERVER_URL:-localhost}"
+      - "SERVER_PORT=${SERVER_PORT:-1514}"
+      - "NAME=${NAME:-agent-regular}"
+      - "GROUP=${GROUP:-default}"
+      - "ENROL_TOKEN=${ENROL_TOKEN:-}"
+
+volumes:
+  agent-ingest-ossec-etc:
+  agent-regular-ossec-etc:
