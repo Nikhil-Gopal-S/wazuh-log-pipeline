@@ -744,6 +744,9 @@ EOF
         chmod +x scripts/generate-certs.sh
         # Use -y for non-interactive mode, -f to force regeneration if needed
         if bash scripts/generate-certs.sh -y; then
+            # Ensure permissions are correct even if script skipped generation
+            chmod 644 "$INSTALL_DIR/deploy/nginx/certs/server.key"
+            chmod 644 "$INSTALL_DIR/deploy/nginx/certs/server.crt"
             log_info "Certificates generated successfully"
         else
             log_warn "Certificate generation script failed, attempting manual generation..."
