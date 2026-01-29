@@ -727,6 +727,14 @@ EOF
     fi
     log_info "Certificate files verified: server.crt and server.key exist"
     
+    # PATCH: Disable internal network isolation to allow agent connectivity
+    log_info "Patching docker-compose.yml to allow external connectivity..."
+    if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        # Use simple sed compatible with most Linux distros
+        sed -i 's/internal: true/# internal: true/g' "$INSTALL_DIR/docker-compose.yml"
+        log_info "Successfully disabled network isolation in docker-compose.yml"
+    fi
+
     log_info "Environment configuration completed"
 }
 
