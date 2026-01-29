@@ -28,6 +28,10 @@ loglevel = INFO
 # JAILS
 #
 
+# Explicitly disable sshd jail (enabled by default in Alpine)
+[sshd]
+enabled = false
+
 # Jail for authentication failures (401/403 responses)
 [wazuh-api-auth]
 enabled = true
