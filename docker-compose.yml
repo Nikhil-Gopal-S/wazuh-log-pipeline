@@ -183,7 +183,31 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  # =============================================================================
+  # Agent Regular Service (OPTIONAL)
+  # =============================================================================
+  # This service is a standard Wazuh agent WITHOUT the REST API. It is NOT
+  # required for REST API-only deployments.
+  #
+  # By default, this service is DISABLED using Docker Compose profiles.
+  # It will NOT start with a regular `docker-compose up` command.
+  #
+  # To enable this service, use one of the following:
+  #   docker-compose --profile full up -d        # Start all services
+  #   docker-compose --profile agent-only up -d  # Start only agent services
+  #
+  # Use cases for this service:
+  # - When you need a dedicated Wazuh agent without API capabilities
+  # - For monitoring additional hosts alongside the API ingestion service
+  # =============================================================================
   agent-regular:
+    # -------------------------------------------------------------------------
+    # Profile Configuration: Service is disabled by default
+    # Use --profile full or --profile agent-only to enable
+    # -------------------------------------------------------------------------
+    profiles:
+      - full
+      - agent-only
     build:
       context: .
       dockerfile: Dockerfile.agent
