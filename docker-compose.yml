@@ -352,11 +352,11 @@ networks:
     name: wazuh-external
   
   # Internal network - isolated from host, only for inter-container communication
-  # The 'internal: true' flag prevents containers on this network from
-  # accessing the external network directly, providing network isolation
+  # NOTE: 'internal: true' is disabled to allow outbound connections to Wazuh Manager
+  # Inbound isolation is still enforced because no ports are mapped for agent services.
   wazuh-internal:
     driver: bridge
-    # internal: true  # This makes the network isolated from the host
+    # internal: true
     name: wazuh-internal
 
 # =============================================================================

@@ -9,6 +9,7 @@
 # Options:
 #   -y, --yes       Skip confirmation prompts
 #   -n, --dry-run   Simulate migration without making changes
+#   -l, --local     Use existing directory (skip git clone)
 #   -d, --dir DIR   Installation directory (default: /opt/wazuh-log-pipeline)
 #   -m, --manager   Wazuh Manager IP (default: 10.47.5.216)
 #   -h, --help      Show this help message
@@ -35,6 +36,7 @@ API_PORT=9000
 LOG_FILE="/var/log/wazuh-migration.log"
 SKIP_CONFIRM=false
 DRY_RUN=false
+LOCAL_MODE=false
 
 # Colors
 RED='\033[0;31m'
@@ -95,6 +97,7 @@ Usage: $0 [OPTIONS]
 Options:
   -y, --yes       Skip confirmation prompts
   -n, --dry-run   Simulate migration without making changes
+  -l, --local     Use existing directory (skip git clone)
   -d, --dir DIR   Installation directory (default: /opt/wazuh-log-pipeline)
   -m, --manager   Wazuh Manager IP (default: 10.47.5.216)
   -h, --help      Show this help message
@@ -337,6 +340,10 @@ parse_args() {
                 DRY_RUN=true
                 shift
                 ;;
+            -l|--local)
+                LOCAL_MODE=true
+                shift
+                ;;
             -d|--dir)
                 INSTALL_DIR="$2"
                 shift 2
@@ -483,6 +490,19 @@ stop_old_container() {
         docker network prune -f 2>/dev/null || true
     fi
     
+    # FORCE CLEANUP: Remove any stopped containers to prevent KeyError in docker-compose 1.29.2
+    # This error occurs when recreating containers if old metadata is corrupt or incompatible
+    if [ "$DRY_RUN" = true ]; then
+        log_info "[DRY-RUN] Would force remove all stopped containers related to this project"
+    else
+        log_info "Force removing all stopped containers to prevent metadata errors..."
+        docker ps -a --filter "name=wazuh-log-pipeline" -q | xargs -r docker rm -f 2>/dev/null || true
+        # Also try to remove by service names if project name prefix isn't used
+        docker ps -a --filter "name=wazuh-agent" -q | xargs -r docker rm -f 2>/dev/null || true
+        docker ps -a --filter "name=wazuh-nginx" -q | xargs -r docker rm -f 2>/dev/null || true
+        docker ps -a --filter "name=wazuh-fail2ban" -q | xargs -r docker rm -f 2>/dev/null || true
+    fi
+
     log_info "Old container cleanup completed"
 }
 
@@ -524,6 +544,24 @@ cleanup_old_images() {
 # Step 3: Clone new repository
 clone_repository() {
     log_info "=== Step 3: Cloning new repository ==="
+    
+    # Check if local mode is enabled
+    if [ "$LOCAL_MODE" = true ]; then
+        log_info "Local mode enabled: Skipping git clone"
+        if [ ! -d "$INSTALL_DIR" ]; then
+            log_error "Directory '$INSTALL_DIR' does not exist (required for local mode)"
+            exit 3
+        fi
+        
+        # Verify essential files exist
+        if [ ! -f "$INSTALL_DIR/docker-compose.yml" ]; then
+            log_error "Verification failed: docker-compose.yml not found in '$INSTALL_DIR'"
+            exit 3
+        fi
+        
+        log_info "Using existing files in '$INSTALL_DIR'"
+        return 0
+    fi
     
     # Check if directory already exists
     if [ -d "$INSTALL_DIR" ]; then
@@ -727,14 +765,6 @@ EOF
     fi
     log_info "Certificate files verified: server.crt and server.key exist"
     
-    # PATCH: Disable internal network isolation to allow agent connectivity
-    log_info "Patching docker-compose.yml to allow external connectivity..."
-    if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
-        # Use simple sed compatible with most Linux distros
-        sed -i 's/internal: true/# internal: true/g' "$INSTALL_DIR/docker-compose.yml"
-        log_info "Successfully disabled network isolation in docker-compose.yml"
-    fi
-
     log_info "Environment configuration completed"
 }
 
@@ -768,10 +798,21 @@ deploy_new_containers() {
         exit 5
     fi
     log_info "Docker images built successfully"
+
+    # Aggressive Cleanup before starting
+    log_info "Performing aggressive cleanup to prevent metadata errors..."
+    if [ "$DRY_RUN" = true ]; then
+        log_info "[DRY-RUN] Would run: $compose_cmd down --remove-orphans -v"
+    else
+        $compose_cmd down --remove-orphans -v 2>/dev/null || true
+        # Also force remove any containers that might be "recreated" due to ID conflicts
+        docker rm -f $(docker ps -a -q -f name=wazuh-log-pipeline) 2>/dev/null || true
+    fi
     
     # Start containers
     log_info "Starting containers..."
-    if ! $compose_cmd up -d; then
+    # Using --force-recreate to ensure fresh containers are created
+    if ! $compose_cmd up -d --force-recreate --remove-orphans; then
         log_error "Failed to start containers"
         exit 5
     fi
@@ -782,6 +823,21 @@ deploy_new_containers() {
     # Check container status
     log_info "Container status:"
     $compose_cmd ps
+    
+    # Check for exited containers and show logs if found
+    if $compose_cmd ps | grep -q "Exit"; then
+        log_error "Some containers failed to start!"
+        log_info "Fetching logs for failed containers..."
+        $compose_cmd logs --tail=100
+        
+        # Explicitly show logs for agent containers if they exist
+        if $compose_cmd ps | grep -q "agent"; then
+            log_info "Fetching specific agent logs..."
+            $compose_cmd logs agent-ingest agent-regular
+        fi
+        
+        exit 5
+    fi
     
     log_info "Deployment completed"
 }
