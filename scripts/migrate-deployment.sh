@@ -756,7 +756,7 @@ EOF
                 -out "$INSTALL_DIR/deploy/nginx/certs/server.crt" \
                 -subj "/C=US/ST=California/L=San Francisco/O=Wazuh Development/OU=Security/CN=localhost" \
                 -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1" 2>/dev/null; then
-                chmod 600 "$INSTALL_DIR/deploy/nginx/certs/server.key"
+                chmod 644 "$INSTALL_DIR/deploy/nginx/certs/server.key"
                 chmod 644 "$INSTALL_DIR/deploy/nginx/certs/server.crt"
                 log_info "Certificates generated manually (fallback)"
             else
@@ -774,7 +774,7 @@ EOF
             -out "$INSTALL_DIR/deploy/nginx/certs/server.crt" \
             -subj "/C=US/ST=California/L=San Francisco/O=Wazuh Development/OU=Security/CN=localhost" \
             -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1" 2>/dev/null; then
-            chmod 600 "$INSTALL_DIR/deploy/nginx/certs/server.key"
+            chmod 644 "$INSTALL_DIR/deploy/nginx/certs/server.key"
             chmod 644 "$INSTALL_DIR/deploy/nginx/certs/server.crt"
             log_info "Certificates generated manually"
         else

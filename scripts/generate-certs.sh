@@ -115,7 +115,7 @@ openssl req -x509 -nodes \
     -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1"
 
 # Set secure permissions
-chmod 600 "$KEY_FILE"
+chmod 644 "$KEY_FILE"
 chmod 644 "$CERT_FILE"
 
 echo ""
