@@ -1156,7 +1156,7 @@ async def health_check(request: Request):
     }
 
 
-@app.put("/", dependencies=[Depends(get_api_key)])
+@app.post("/ingest", dependencies=[Depends(get_api_key)])
 async def ingest_event(request: Request, event: IngestEvent):
     """
     Ingest a single log event.
@@ -1186,7 +1186,7 @@ async def ingest_event(request: Request, event: IngestEvent):
     return result
 
 
-@app.put("/batch", dependencies=[Depends(get_api_key)])
+@app.post("/batch", dependencies=[Depends(get_api_key)])
 @limiter.limit("100/minute")
 async def ingest_batch(request: Request, batch: BatchIngestRequest):
     """
