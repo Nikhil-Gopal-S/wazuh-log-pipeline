@@ -823,6 +823,16 @@ deploy_new_containers() {
     # We MUST stop and remove containers to avoid the recreation bug
     log_info "Stopping containers to avoid docker-compose 1.29.2 bug..."
     if [ "$DRY_RUN" = false ]; then
+        # Explicitly remove the nginx container which has a fixed name and is causing issues
+        if docker ps -a --format '{{.Names}}' | grep -q "^wazuh-nginx$"; then
+            log_info "Force removing wazuh-nginx container..."
+            docker rm -f wazuh-nginx || true
+        fi
+        
+        # Also remove other service containers if they exist (using common project name prefixes)
+        # This handles cases where docker-compose down fails to read metadata
+        docker ps -a --format '{{.Names}}' | grep -E "wazuh-log-pipeline_(agent|nginx)" | xargs -r docker rm -f || true
+
         $compose_cmd down --remove-orphans 2>/dev/null || true
     fi
     
