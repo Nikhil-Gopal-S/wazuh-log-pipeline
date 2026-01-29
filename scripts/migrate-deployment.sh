@@ -527,6 +527,21 @@ cleanup_old_images() {
         return 0
     fi
     
+    # Check for containers using this image and remove them first
+    log_info "Checking for containers using '$OLD_IMAGE_NAME'..."
+    local containers_using_image
+    containers_using_image=$(docker ps -a --filter "ancestor=$OLD_IMAGE_NAME" -q)
+    
+    if [ -n "$containers_using_image" ]; then
+        log_info "Found containers using the image: $containers_using_image"
+        if [ "$DRY_RUN" = true ]; then
+             log_info "[DRY-RUN] Would force remove containers using the image"
+        else
+             log_info "Force removing containers using the image..."
+             echo "$containers_using_image" | xargs -r docker rm -f
+        fi
+    fi
+    
     log_info "Removing Docker image '$OLD_IMAGE_NAME'..."
     if ! docker rmi "$OLD_IMAGE_NAME"; then
         log_warn "Failed to remove image '$OLD_IMAGE_NAME' (may be in use by other containers)"
