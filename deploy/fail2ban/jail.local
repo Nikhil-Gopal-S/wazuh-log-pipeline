@@ -32,6 +32,10 @@ loglevel = INFO
 [sshd]
 enabled = false
 
+# Explicitly disable sshd-ddos jail (enabled by default in some distros)
+[sshd-ddos]
+enabled = false
+
 # Jail for authentication failures (401/403 responses)
 [wazuh-api-auth]
 enabled = true

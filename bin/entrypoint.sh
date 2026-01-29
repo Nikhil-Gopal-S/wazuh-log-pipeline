@@ -124,7 +124,8 @@ envsubst < "/opt/ossec/ossec.tpl" > "/var/ossec/etc/ossec.conf"
 
 # Start Wazuh agent
 echo "Starting Wazuh Agent..."
-/var/ossec/bin/wazuh-control start
+# Allow agent start to fail without exiting script (so API can still start)
+/var/ossec/bin/wazuh-control start || echo "WARNING: Wazuh Agent failed to start"
 
 # Start the ingest API (runs as current user - wazuh)
 echo "Starting Ingest API..."

@@ -58,7 +58,8 @@ fi
 
 # Start Wazuh agent
 echo "Starting Wazuh Agent..."
-/var/ossec/bin/wazuh-control start
+# Allow agent start to fail without exiting script (so API can still start)
+/var/ossec/bin/wazuh-control start || echo "WARNING: Wazuh Agent failed to start"
 
 # Start health and readiness endpoints (runs as current user - wazuh)
 echo "Starting Health and Readiness endpoints..."
