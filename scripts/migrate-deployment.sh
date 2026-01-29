@@ -816,6 +816,13 @@ deploy_new_containers() {
         # Removing -v to preserve volumes (data/logs)
         # $compose_cmd down --remove-orphans 2>/dev/null || true
     # fi
+
+    # Workaround for docker-compose 1.29.2 'ContainerConfig' KeyError
+    # We MUST stop and remove containers to avoid the recreation bug
+    log_info "Stopping containers to avoid docker-compose 1.29.2 bug..."
+    if [ "$DRY_RUN" = false ]; then
+        $compose_cmd down --remove-orphans 2>/dev/null || true
+    fi
     
     # Start containers
     log_info "Starting containers..."
