@@ -810,32 +810,23 @@ deploy_new_containers() {
     log_info "Docker images built successfully"
 
     # Aggressive Cleanup before starting
-    # log_info "Performing aggressive cleanup to prevent metadata errors..."
-    # if [ "$DRY_RUN" = true ]; then
-    #    log_info "[DRY-RUN] Would run: $compose_cmd down --remove-orphans -v"
-    # else
-        # Only remove orphans, don't kill running services if they are fine.
-        # Removing -v to preserve volumes (data/logs)
-        # $compose_cmd down --remove-orphans 2>/dev/null || true
-    # fi
-
-    # Workaround for docker-compose 1.29.2 'ContainerConfig' KeyError
-    # We MUST stop and remove containers to avoid the recreation bug
-    log_info "Stopping containers to avoid docker-compose 1.29.2 bug..."
+    log_info "Performing aggressive cleanup to prevent metadata errors..."
     if [ "$DRY_RUN" = false ]; then
-        # Explicitly remove the nginx container which has a fixed name and is causing issues
+        # 1. Try standard down first
+        $compose_cmd down --remove-orphans 2>/dev/null || true
+        
+        # 2. Force remove known container names (wazuh-nginx has a fixed container_name)
         if docker ps -a --format '{{.Names}}' | grep -q "^wazuh-nginx$"; then
-            log_info "Force removing wazuh-nginx container..."
+            log_info "Force removing stuck wazuh-nginx container..."
             docker rm -f wazuh-nginx || true
         fi
         
-        # Also remove other service containers if they exist (using common project name prefixes)
-        # This handles cases where docker-compose down fails to read metadata
-        docker ps -a --format '{{.Names}}' | grep -E "wazuh-log-pipeline_(agent|nginx)" | xargs -r docker rm -f || true
-
-        $compose_cmd down --remove-orphans 2>/dev/null || true
+        # 3. Force remove any containers associated with this project directory
+        # This catches wazuh-log-pipeline_agent-regular_1 etc. even if docker-compose down failed
+        log_info "Cleaning up any remaining project containers..."
+        docker ps -a --filter "name=wazuh-log-pipeline" --format '{{.ID}}' | xargs -r docker rm -f || true
     fi
-    
+
     # Start containers
     log_info "Starting containers..."
     # Using --force-recreate to ensure fresh containers are created
