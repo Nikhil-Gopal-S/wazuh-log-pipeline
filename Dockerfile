@@ -1,37 +1,9 @@
 # =============================================================================
-# Wazuh Log Ingestion API - Multi-Stage Dockerfile
+# Wazuh Log Ingestion API - Dockerfile
 # =============================================================================
-# Stage 1: Builder - Compile Python dependencies into wheels
-# Stage 2: Final - Production image with Wazuh agent and pre-built packages
+# Production image with Wazuh agent and Python API
 # =============================================================================
 
-# -----------------------------------------------------------------------------
-# Stage 1: Builder - Build Python wheels
-# -----------------------------------------------------------------------------
-FROM python:3.11-slim AS builder
-
-# Labels for builder stage
-LABEL stage="builder"
-
-WORKDIR /build
-
-# Install build dependencies for compiling Python packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    gcc \
-    g++ \
-    libffi-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements file
-COPY api/requirements.txt .
-
-# Build wheels for all dependencies (no cache to reduce size)
-RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
-
-# -----------------------------------------------------------------------------
-# Stage 2: Final - Production image
-# -----------------------------------------------------------------------------
 FROM debian:trixie-slim AS final
 
 # =============================================================================
@@ -48,20 +20,24 @@ LABEL org.opencontainers.image.licenses="GPL-2.0"
 LABEL org.opencontainers.image.source="https://github.com/wazuh/wazuh-api"
 
 # =============================================================================
-# Install Python and minimal runtime dependencies
+# Install Python and build dependencies for compiling packages
 # =============================================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
+    python3-dev \
+    build-essential \
+    gcc \
+    libffi-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # =============================================================================
-# Copy and install pre-built Python wheels from builder stage
+# Install Python dependencies
 # =============================================================================
-COPY --from=builder /wheels /wheels
-RUN pip3 install --no-cache-dir --break-system-packages /wheels/* \
-    && rm -rf /wheels
+COPY api/requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt
 
 # =============================================================================
 # Install system utilities required for Wazuh and runtime
