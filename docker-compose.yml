@@ -186,7 +186,7 @@ services:
       dockerfile: Dockerfile.agent
       args:
         - "WAZUH_AGENT_VERSION=${WAZUH_AGENT_VERSION:-}"
-    image: sammascanner/wazuh-agent:regular_0.2
+    # image: sammascanner/wazuh-agent:regular_0.2
     # ==========================================================================
     # Network Isolation: Service is on internal network only
     # Access this service through Nginx reverse proxy, not directly
