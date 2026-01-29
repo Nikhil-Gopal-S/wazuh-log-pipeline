@@ -723,8 +723,10 @@ EOF
     # Generate self-signed certificates for testing
     # Use -y flag for non-interactive mode to avoid blocking on prompts
     log_info "Generating self-signed certificates..."
-    if [ -x "$INSTALL_DIR/scripts/generate-certs.sh" ]; then
+    if [ -f "$INSTALL_DIR/scripts/generate-certs.sh" ]; then
         cd "$INSTALL_DIR" || exit 4
+        # Ensure script is executable
+        chmod +x scripts/generate-certs.sh
         # Use -y for non-interactive mode, -f to force regeneration if needed
         if bash scripts/generate-certs.sh -y; then
             log_info "Certificates generated successfully"
