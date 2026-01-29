@@ -1,8 +1,8 @@
 FROM debian:trixie-slim
 
 
-LABEL version "4.10.0"
-LABEL description "Wazuh Agent"
+LABEL version="4.10.0"
+LABEL description="Wazuh Agent"
 
 
 COPY bin/entrypoint_node.sh /entrypoint.sh
@@ -34,7 +34,14 @@ RUN apt-get update && if [ -n "$WAZUH_AGENT_VERSION" ]; then apt-get install -y 
 
 
 
-#Adding Webserver and ready, metrics 
+# Set ownership of /var/ossec directory for non-root user (wazuh user created by wazuh-agent package)
+RUN chown -R wazuh:wazuh /var/ossec
+
+#Adding Webserver and ready, metrics
 COPY web /web
 RUN chmod +x /web/ready.sh &&  chmod +x /entrypoint.sh
+
+# Switch to non-root user for security
+USER wazuh
+
 ENTRYPOINT ["/entrypoint.sh"]

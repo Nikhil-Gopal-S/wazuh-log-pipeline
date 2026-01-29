@@ -1,0 +1,10 @@
+# Ignore all backup files
+*.tar.gz
+*.tar.gz.enc
+*.enc
+
+# Ignore extracted backup directories
+wazuh-api-backup_*/
+
+# Keep this .gitignore file
+!.gitignore

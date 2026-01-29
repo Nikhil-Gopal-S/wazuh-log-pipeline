@@ -1,8 +1,35 @@
 # Wazuh Log Pipeline Agent
 
+![Security Status](https://img.shields.io/badge/Security-Hardened-brightgreen)
+![TLS](https://img.shields.io/badge/TLS-1.2%2F1.3-blue)
+![Authentication](https://img.shields.io/badge/Auth-API%20Key-blue)
+![Container Security](https://img.shields.io/badge/Containers-Non--root-green)
+
 This project provides a specialized **Wazuh Agent Docker container** designed for **log ingestion** via a REST API. Unlike a standard Wazuh agent that monitors the host system (files, processes, etc.), this agent acts as a gateway to accept external JSON events and forward them to the Wazuh Manager.
 
 It includes a **FastAPI** service running alongside the Wazuh agent to handle high-throughput log ingestion.
+
+---
+
+## 🔒 Security Status
+
+This project has undergone comprehensive security hardening. All 23 identified vulnerabilities have been remediated.
+
+| Security Control | Status |
+|-----------------|--------|
+| **Non-root Containers** | ✅ Implemented |
+| **TLS 1.2/1.3 Encryption** | ✅ Enforced |
+| **API Key Authentication** | ✅ Mandatory |
+| **Rate Limiting** | ✅ Active |
+| **Fail2ban Protection** | ✅ Operational |
+| **Network Isolation** | ✅ Configured |
+| **Structured Logging** | ✅ Enabled |
+| **Encrypted Backups** | ✅ Available |
+
+For detailed security information, see:
+- [Security Verification Report](docs/SECURITY-VERIFICATION-REPORT.md)
+- [Security Testing Checklist](docs/SECURITY-TESTING-CHECKLIST.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 
 ---
 

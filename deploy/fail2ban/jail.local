@@ -1,0 +1,73 @@
+# Fail2ban Jail Configuration for Wazuh API
+# This file overrides /etc/fail2ban/jail.conf defaults
+
+[DEFAULT]
+# Default ban settings
+bantime = 3600
+findtime = 600
+maxretry = 5
+
+# Ignore localhost and Docker networks
+ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+# Use DOCKER-USER chain for Docker compatibility
+chain = DOCKER-USER
+
+# Backend for log monitoring
+backend = auto
+
+# Ban action using iptables with DOCKER-USER chain
+banaction = iptables-multiport
+banaction_allports = iptables-allports
+
+# Logging
+logtarget = /var/log/fail2ban/fail2ban.log
+loglevel = INFO
+
+#
+# JAILS
+#
+
+# Jail for authentication failures (401/403 responses)
+[wazuh-api-auth]
+enabled = true
+filter = wazuh-api-auth
+logpath = /var/log/nginx/access.log
+port = http,https
+maxretry = 5
+findtime = 300
+bantime = 3600
+# 5 auth failures in 5 minutes = 1 hour ban
+
+# Jail for rate limit violations (429 responses)
+[wazuh-api-ratelimit]
+enabled = true
+filter = wazuh-api-ratelimit
+logpath = /var/log/nginx/access.log
+port = http,https
+maxretry = 20
+findtime = 60
+bantime = 1800
+# 20 rate limit hits in 1 minute = 30 minute ban
+
+# Jail for bad requests (400 responses - malformed requests)
+[wazuh-api-badrequest]
+enabled = true
+filter = wazuh-api-badrequest
+logpath = /var/log/nginx/access.log
+port = http,https
+maxretry = 10
+findtime = 300
+bantime = 1800
+# 10 bad requests in 5 minutes = 30 minute ban
+
+# Jail for scanning/probing (404 responses on sensitive paths)
+[wazuh-api-scanner]
+enabled = true
+filter = wazuh-api-scanner
+logpath = /var/log/nginx/access.log
+port = http,https
+maxretry = 10
+findtime = 60
+bantime = 7200
+# 10 probing attempts in 1 minute = 2 hour ban

@@ -1,0 +1,15 @@
+# Ignore all security scan reports
+# These are generated locally and should not be committed
+
+# Scan reports in various formats
+*.json
+*.sarif
+*.table
+*.txt
+*.html
+
+# Keep this .gitignore file
+!.gitignore
+
+# README for documentation purposes
+!README.md

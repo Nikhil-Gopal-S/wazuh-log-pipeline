@@ -1,0 +1,22 @@
+# Wazuh Log Ingestion API Dependencies
+# =====================================
+
+# Web Framework
+fastapi[standard]>=0.109.0,<1.0.0
+uvicorn[standard]>=0.27.0,<1.0.0
+
+# Data Validation
+pydantic>=2.0.0,<3.0.0
+
+# Rate Limiting
+slowapi>=0.1.9,<1.0.0
+
+# AWS Integration (optional, for cloud integrations)
+boto3>=1.34.0,<2.0.0
+
+# Data Processing (for Wazuh integrations)
+pyarrow>=15.0.0,<20.0.0
+numpy>=1.26.0,<3.0.0
+
+# Certificate Validation (optional, for production safety checks)
+cryptography>=42.0.0,<44.0.0
