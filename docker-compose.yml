@@ -356,7 +356,7 @@ networks:
   # accessing the external network directly, providing network isolation
   wazuh-internal:
     driver: bridge
-    internal: true  # This makes the network isolated from the host
+    # internal: true  # This makes the network isolated from the host
     name: wazuh-internal
 
 # =============================================================================
