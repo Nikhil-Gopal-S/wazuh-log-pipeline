@@ -565,16 +565,24 @@ clone_repository() {
     
     # Check if directory already exists
     if [ -d "$INSTALL_DIR" ]; then
-        log_warn "Directory '$INSTALL_DIR' already exists"
-        if [ "$DRY_RUN" = true ]; then
-            log_info "[DRY-RUN] Would remove existing directory '$INSTALL_DIR'"
+        log_info "Directory '$INSTALL_DIR' already exists."
+        
+        # Verify it looks like a valid deployment
+        if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+             log_info "Found existing deployment files. Skipping clone to avoid overwriting."
+             return 0
         else
-            if ! confirm "This will remove the existing directory and clone fresh."; then
-                exit 3
-            fi
-            
-            log_info "Removing existing directory..."
-            rm -rf "$INSTALL_DIR"
+             log_warn "Directory exists but docker-compose.yml is missing."
+             if [ "$DRY_RUN" = true ]; then
+                 log_info "[DRY-RUN] Would remove invalid directory and re-clone"
+             else
+                 if confirm "Directory exists but appears invalid. Remove and re-clone?"; then
+                     rm -rf "$INSTALL_DIR"
+                 else
+                     log_error "Cannot proceed with invalid existing directory."
+                     exit 3
+                 fi
+             fi
         fi
     fi
     
@@ -800,19 +808,19 @@ deploy_new_containers() {
     log_info "Docker images built successfully"
 
     # Aggressive Cleanup before starting
-    log_info "Performing aggressive cleanup to prevent metadata errors..."
-    if [ "$DRY_RUN" = true ]; then
-        log_info "[DRY-RUN] Would run: $compose_cmd down --remove-orphans -v"
-    else
-        $compose_cmd down --remove-orphans -v 2>/dev/null || true
-        # Also force remove any containers that might be "recreated" due to ID conflicts
-        docker rm -f $(docker ps -a -q -f name=wazuh-log-pipeline) 2>/dev/null || true
-    fi
+    # log_info "Performing aggressive cleanup to prevent metadata errors..."
+    # if [ "$DRY_RUN" = true ]; then
+    #    log_info "[DRY-RUN] Would run: $compose_cmd down --remove-orphans -v"
+    # else
+        # Only remove orphans, don't kill running services if they are fine.
+        # Removing -v to preserve volumes (data/logs)
+        # $compose_cmd down --remove-orphans 2>/dev/null || true
+    # fi
     
     # Start containers
     log_info "Starting containers..."
     # Using --force-recreate to ensure fresh containers are created
-    if ! $compose_cmd up -d --force-recreate --remove-orphans; then
+    if ! $compose_cmd up -d --remove-orphans; then
         log_error "Failed to start containers"
         exit 5
     fi
