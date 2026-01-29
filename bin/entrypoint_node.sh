@@ -49,6 +49,13 @@ fi
 echo "Setting up configuration..."
 envsubst < "/opt/ossec/ossec.tpl" > "/var/ossec/etc/ossec.conf"
 
+# Ensure permissions are correct (since we run as root)
+chown wazuh:wazuh /var/ossec/etc/ossec.conf
+if [ -f "/var/ossec/etc/authd.pass" ]; then
+    chown wazuh:wazuh /var/ossec/etc/authd.pass
+    chmod 640 /var/ossec/etc/authd.pass
+fi
+
 # Start Wazuh agent
 echo "Starting Wazuh Agent..."
 /var/ossec/bin/wazuh-control start

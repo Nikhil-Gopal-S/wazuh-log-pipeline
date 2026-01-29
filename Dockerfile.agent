@@ -42,6 +42,6 @@ COPY web /web
 RUN chmod +x /web/ready.sh &&  chmod +x /entrypoint.sh
 
 # Switch to non-root user for security
-USER wazuh
+# USER wazuh
 
 ENTRYPOINT ["/entrypoint.sh"]
