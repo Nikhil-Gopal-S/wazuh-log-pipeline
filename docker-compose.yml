@@ -133,9 +133,15 @@ services:
     # Secrets are mounted as read-only files at /run/secrets/<secret_name>
     # The API reads the API key from /run/secrets/api_key (implemented in api.py)
     # To generate secrets, run: ./scripts/init-secrets.sh
+    #
+    # Note: Secrets are mounted with uid/gid 1000 (wazuh user) to allow
+    # the non-root container to read them.
     # -------------------------------------------------------------------------
     secrets:
-      - api_key
+      - source: api_key
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
     # Health check using the liveness probe endpoint (no auth required)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/health/live"]
@@ -143,10 +149,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    # Security hardening options
-    security_opt:
-      # Prevent privilege escalation via setuid/setgid binaries
-      - no-new-privileges:true
+    # -------------------------------------------------------------------------
+    # Security Note: no-new-privileges is removed to allow Wazuh agent to
+    # switch to the wazuh group during startup. The container still runs
+    # as non-root (wazuh user) for security.
+    # -------------------------------------------------------------------------
     # Drop all Linux capabilities for minimal attack surface
     cap_drop:
       - ALL

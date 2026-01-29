@@ -3,6 +3,19 @@
 # Self-Signed Certificate Generation Script
 # For development and testing purposes only
 # =============================================================================
+#
+# Usage: ./generate-certs.sh [OPTIONS]
+#
+# Options:
+#   -f, --force     Force regeneration even if certificates exist
+#   -y, --yes       Non-interactive mode (auto-confirm prompts)
+#   -h, --help      Show this help message
+#
+# Examples:
+#   ./generate-certs.sh              # Interactive mode
+#   ./generate-certs.sh -y           # Non-interactive, skip if exists
+#   ./generate-certs.sh -f -y        # Non-interactive, force regenerate
+# =============================================================================
 
 set -e
 
@@ -19,11 +32,45 @@ ORG="Wazuh Development"
 OU="Security"
 CN="localhost"
 
+# Options
+FORCE_REGEN=false
+NON_INTERACTIVE=false
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -f|--force)
+            FORCE_REGEN=true
+            shift
+            ;;
+        -y|--yes)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        -h|--help)
+            echo "Self-Signed Certificate Generation Script"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  -f, --force     Force regeneration even if certificates exist"
+            echo "  -y, --yes       Non-interactive mode (auto-confirm prompts)"
+            echo "  -h, --help      Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use -h or --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Self-Signed Certificate Generator${NC}"
@@ -39,11 +86,19 @@ if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
     echo "  Certificate: $CERT_FILE"
     echo "  Private Key: $KEY_FILE"
     echo ""
-    read -p "Do you want to regenerate them? (y/N): " -n 1 -r
-    echo ""
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${GREEN}Keeping existing certificates.${NC}"
+    
+    if [ "$FORCE_REGEN" = true ]; then
+        echo -e "${YELLOW}Force regeneration requested (-f flag)${NC}"
+    elif [ "$NON_INTERACTIVE" = true ]; then
+        echo -e "${GREEN}Keeping existing certificates (non-interactive mode).${NC}"
         exit 0
+    else
+        read -p "Do you want to regenerate them? (y/N): " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${GREEN}Keeping existing certificates.${NC}"
+            exit 0
+        fi
     fi
 fi
 

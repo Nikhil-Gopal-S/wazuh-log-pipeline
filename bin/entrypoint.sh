@@ -25,30 +25,53 @@ check_production_readiness() {
     
     echo "Running production readiness checks..."
     
-    # Check for self-signed certificates
-    if [ -f "/etc/nginx/certs/server.crt" ]; then
+    # Check for self-signed certificates (only if file exists and is readable)
+    if [ -f "/etc/nginx/certs/server.crt" ] && [ -r "/etc/nginx/certs/server.crt" ]; then
         ISSUER=$(openssl x509 -in /etc/nginx/certs/server.crt -issuer -noout 2>/dev/null || echo "")
         SUBJECT=$(openssl x509 -in /etc/nginx/certs/server.crt -subject -noout 2>/dev/null || echo "")
         if [ "$ISSUER" = "$SUBJECT" ]; then
             echo "WARNING: Self-signed certificate detected!"
             echo "         For production, deploy a valid CA-signed certificate."
-            ((warnings++))
+            ((warnings++)) || true
         fi
     fi
     
     # Check for default/weak API key
+    # First check if secret file exists and is readable
     if [ -f "/run/secrets/api_key" ]; then
-        API_KEY=$(cat /run/secrets/api_key)
+        if [ -r "/run/secrets/api_key" ]; then
+            API_KEY=$(cat /run/secrets/api_key 2>/dev/null || echo "")
+            if [ -n "$API_KEY" ]; then
+                if [ ${#API_KEY} -lt 32 ]; then
+                    echo "WARNING: API key is less than 32 characters!"
+                    echo "         Use a stronger API key for production."
+                    ((warnings++)) || true
+                fi
+                if [ "$API_KEY" = "changeme" ] || [ "$API_KEY" = "test" ] || [ "$API_KEY" = "development" ]; then
+                    echo "ERROR: Default/test API key detected!"
+                    echo "       Generate a secure API key before production deployment."
+                    ((warnings++)) || true
+                fi
+            else
+                echo "WARNING: API key file exists but is empty or unreadable"
+                ((warnings++)) || true
+            fi
+        else
+            echo "WARNING: API key file exists but is not readable by current user"
+            echo "         Check secret file permissions (should be uid/gid 1000 for wazuh user)"
+            ((warnings++)) || true
+        fi
+    elif [ -n "${API_KEY:-}" ]; then
+        # Fallback: check API_KEY environment variable
+        echo "INFO: Using API_KEY from environment variable"
         if [ ${#API_KEY} -lt 32 ]; then
             echo "WARNING: API key is less than 32 characters!"
-            echo "         Use a stronger API key for production."
-            ((warnings++))
+            ((warnings++)) || true
         fi
-        if [ "$API_KEY" = "changeme" ] || [ "$API_KEY" = "test" ] || [ "$API_KEY" = "development" ]; then
-            echo "ERROR: Default/test API key detected!"
-            echo "       Generate a secure API key before production deployment."
-            ((warnings++))
-        fi
+    else
+        echo "WARNING: No API key configured (neither secret file nor environment variable)"
+        echo "         API authentication will fail without a valid API key"
+        ((warnings++)) || true
     fi
     
     # Check environment variable
@@ -61,11 +84,15 @@ check_production_readiness() {
             echo "All production readiness checks passed."
         fi
     fi
+    
+    # Return success even with warnings - don't block container startup
+    return 0
 }
 
 # Run checks if not in CI/test mode
 if [ "${SKIP_READINESS_CHECKS:-false}" != "true" ]; then
-    check_production_readiness
+    # Run checks but don't fail on errors - just warn
+    check_production_readiness || echo "WARNING: Production readiness checks encountered an error"
 fi
 
 # Generate random agent name suffix

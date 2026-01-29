@@ -582,7 +582,8 @@ configure_environment() {
         log_info "  - ::1 (localhost IPv6)"
         log_info "  - ${WHITELIST_IP} (Wazuh Manager)"
         log_info "[DRY-RUN] Would generate API key in $INSTALL_DIR/secrets/api_key.txt"
-        log_info "[DRY-RUN] Would generate self-signed certificates"
+        log_info "[DRY-RUN] Would generate self-signed certificates (non-interactive mode)"
+        log_info "[DRY-RUN] Certificate files: $INSTALL_DIR/deploy/nginx/certs/server.crt, server.key"
         return 0
     fi
     
@@ -674,17 +675,57 @@ EOF
     log_info "API key generated"
     
     # Generate self-signed certificates for testing
+    # Use -y flag for non-interactive mode to avoid blocking on prompts
     log_info "Generating self-signed certificates..."
     if [ -x "$INSTALL_DIR/scripts/generate-certs.sh" ]; then
         cd "$INSTALL_DIR" || exit 4
-        if bash scripts/generate-certs.sh; then
-            log_info "Certificates generated"
+        # Use -y for non-interactive mode, -f to force regeneration if needed
+        if bash scripts/generate-certs.sh -y; then
+            log_info "Certificates generated successfully"
         else
-            log_warn "Certificate generation script failed, continuing anyway"
+            log_warn "Certificate generation script failed, attempting manual generation..."
+            # Fallback: generate certificates manually
+            mkdir -p "$INSTALL_DIR/deploy/nginx/certs"
+            if openssl req -x509 -nodes \
+                -days 365 \
+                -newkey rsa:2048 \
+                -keyout "$INSTALL_DIR/deploy/nginx/certs/server.key" \
+                -out "$INSTALL_DIR/deploy/nginx/certs/server.crt" \
+                -subj "/C=US/ST=California/L=San Francisco/O=Wazuh Development/OU=Security/CN=localhost" \
+                -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1" 2>/dev/null; then
+                chmod 600 "$INSTALL_DIR/deploy/nginx/certs/server.key"
+                chmod 644 "$INSTALL_DIR/deploy/nginx/certs/server.crt"
+                log_info "Certificates generated manually (fallback)"
+            else
+                log_error "Failed to generate certificates"
+                exit 4
+            fi
         fi
     else
-        log_warn "Certificate generation script not found or not executable"
+        log_warn "Certificate generation script not found, generating manually..."
+        mkdir -p "$INSTALL_DIR/deploy/nginx/certs"
+        if openssl req -x509 -nodes \
+            -days 365 \
+            -newkey rsa:2048 \
+            -keyout "$INSTALL_DIR/deploy/nginx/certs/server.key" \
+            -out "$INSTALL_DIR/deploy/nginx/certs/server.crt" \
+            -subj "/C=US/ST=California/L=San Francisco/O=Wazuh Development/OU=Security/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1" 2>/dev/null; then
+            chmod 600 "$INSTALL_DIR/deploy/nginx/certs/server.key"
+            chmod 644 "$INSTALL_DIR/deploy/nginx/certs/server.crt"
+            log_info "Certificates generated manually"
+        else
+            log_error "Failed to generate certificates"
+            exit 4
+        fi
     fi
+    
+    # Verify certificates were created
+    if [ ! -f "$INSTALL_DIR/deploy/nginx/certs/server.crt" ] || [ ! -f "$INSTALL_DIR/deploy/nginx/certs/server.key" ]; then
+        log_error "Certificate files not found after generation"
+        exit 4
+    fi
+    log_info "Certificate files verified: server.crt and server.key exist"
     
     log_info "Environment configuration completed"
 }
