@@ -2,17 +2,15 @@
 # =============================================================================
 # Wazuh Agent Entrypoint Script
 # =============================================================================
-# This script runs as the non-root 'wazuh' user (UID 1000).
-# The container is configured to run as the wazuh user via the Dockerfile's
-# USER directive, so no privilege escalation (gosu/sudo) is needed or available.
+# This script runs as root to ensure Wazuh agent binaries can start properly.
 #
-# Prerequisites (handled in Dockerfile at build time):
-#   - All directories under /var/ossec are owned by wazuh:wazuh
-#   - All directories under /opt/ossec are readable by wazuh
-#   - The /web directory is owned by wazuh:wazuh
+# Why root is required:
+#   - Wazuh agent binaries (wazuh-control) require root privileges
+#   - Docker Compose v1 doesn't support uid/gid on secrets
+#   - Secrets are mounted as root-owned files by default
 #
-# Note: If using mounted volumes, ensure the host directories have appropriate
-# permissions for UID 1000 (wazuh user) before starting the container.
+# This is acceptable for test/development environments. For production with
+# stricter security requirements, consider using Docker Compose v2.
 # =============================================================================
 
 set -e
@@ -58,7 +56,7 @@ check_production_readiness() {
             fi
         else
             echo "WARNING: API key file exists but is not readable by current user"
-            echo "         Check secret file permissions (should be uid/gid 1000 for wazuh user)"
+            echo "         Check secret file permissions"
             ((warnings++)) || true
         fi
     elif [ -n "${API_KEY:-}" ]; then

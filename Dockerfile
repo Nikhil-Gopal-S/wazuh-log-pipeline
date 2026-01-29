@@ -92,13 +92,22 @@ COPY web /web
 # Make scripts executable
 RUN chmod +x /web/ready.sh && chmod +x /entrypoint.sh
 
-# Set ownership for non-root user (wazuh user created by wazuh-agent package)
-RUN chown -R wazuh:wazuh /var/ossec/wodles/api /web
+# Ensure Wazuh binaries are executable (they should be, but verify)
+RUN chmod +x /var/ossec/bin/* 2>/dev/null || true
 
 # =============================================================================
-# Security: Switch to non-root user
+# Security Note: Running as root
 # =============================================================================
-USER wazuh
+# The container runs as root because:
+# 1. Wazuh agent binaries (wazuh-control) require root privileges to start
+# 2. Docker Compose v1 doesn't support uid/gid on secrets, so secrets are
+#    mounted as root-owned files
+# 3. This is acceptable for a test/development environment
+#
+# For production with stricter security requirements, consider:
+# - Using Docker Compose v2 with uid/gid support
+# - Running the API as a separate non-root process after Wazuh starts
+# =============================================================================
 
 # =============================================================================
 # Container configuration

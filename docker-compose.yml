@@ -134,14 +134,12 @@ services:
     # The API reads the API key from /run/secrets/api_key (implemented in api.py)
     # To generate secrets, run: ./scripts/init-secrets.sh
     #
-    # Note: Secrets are mounted with uid/gid 1000 (wazuh user) to allow
-    # the non-root container to read them.
+    # Note: For Docker Compose v1 compatibility, uid/gid/mode options are not
+    # used. The container runs as root to ensure access to secrets and Wazuh
+    # binaries. This is acceptable for a test environment.
     # -------------------------------------------------------------------------
     secrets:
-      - source: api_key
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
+      - api_key
     # Health check using the liveness probe endpoint (no auth required)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/health/live"]
